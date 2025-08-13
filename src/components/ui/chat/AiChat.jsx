@@ -6,35 +6,66 @@ import { Input } from "../input";
 import { FaRegUser } from "react-icons/fa";
 import { RiGeminiLine } from "react-icons/ri";
 
+const API_KEY = "AIzaSyCtQC9-isXysc2rC0ijhguaNNerk40KdkQ";
+
 function ChatWindow() {
     const [messages, setMessages] = useState([
-        { sender: "ai", text: "Hi! How can I help you today?" },
-        { sender: "user", text: "What's the weather like?" },
-        { sender: "ai", text: "I'm sorry, I don't have access to real-time weather information." },
-        { sender: "user", text: "Can you tell me a joke?" },
-        { sender: "ai", text: "Why don't scientists trust atoms? Because they make up everything!" },
-        { sender: "user", text: "Haha, good one!" },
-        { sender: "ai", text: "Glad you liked it! Is there anything else you'd like to chat about?" },
+        { role: "ai", text: "Hello! I'm Gemini AI. How can I help you today?" }
     ]);
 
     const [input, setInput] = useState("");
     const chatEndRef = useRef(null);
 
-    const handleSend = () => {
-        if (input.trim() === "") return;
-        setMessages(prev => [...prev, { sender: "user", text: input }]);
-        setInput("");
-    };
-
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
+
+    const handleSend = async () => {
+        if (input.trim() === "") return;
+
+        // Add user message
+        setMessages(prev => [...prev, { role: "user", text: input }]);
+        const userMessage = input;
+        setInput("");
+
+        try {
+            const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: userMessage }] }]
+                    })
+                }
+            );
+
+            const data = await res.json();
+
+            let aiText =
+                data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+                "Sorry, I couldn't process that.";
+
+            // Add AI message
+            setMessages(prev => [...prev, { role: "ai", text: aiText }]);
+        } catch (error) {
+            console.error("Error:", error);
+            setMessages(prev => [
+                ...prev,
+                { role: "ai", text: "Error connecting to AI." }
+            ]);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter") handleSend();
+    };
 
     return (
         <div className="flex flex-col w-full max-w-md h-[80vh] border border-gray-300 rounded-lg bg-white shadow-md">
             <main className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.map((msg, index) =>
-                    msg.sender === "ai" ? (
+                    msg.role === "ai" ? (
                         <MessageLeft key={index} text={msg.text} />
                     ) : (
                         <MessageRight key={index} text={msg.text} />
@@ -44,9 +75,10 @@ function ChatWindow() {
             </main>
             <footer className="flex items-center gap-2 p-3 border-t border-gray-200 bg-gray-50">
                 <Input
+                    type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                    onKeyDown={handleKeyDown}
                     placeholder="Type your message..."
                     className="flex-1"
                 />
